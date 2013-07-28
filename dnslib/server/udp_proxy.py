@@ -40,6 +40,9 @@ options,args = parser.parse_args()
 proxy = socket.socket(AF_INET, SOCK_DGRAM)
 proxy.bind((options.bind,options.port))
 
+with_indent = lambda indent, obj: indent + str(obj).replace("\n", "\n" + indent)
+
+
 while True:
     # Wait for client connection
     data,client = proxy.recvfrom(8192)
@@ -50,7 +53,7 @@ while True:
     qtype = request.q.qtype
     print "------ Request (%s): %r (%s)" % (str(client),qname.label,QTYPE[qtype])
     print data.encode('hex')
-    print "\n".join([ "  %s" % l for l in str(request).split("\n")])
+    print with_indent("  ", request)
     # Send request to server
     s = socket.socket(AF_INET, SOCK_DGRAM)
     s.sendto(data,(options.dns,options.dns_port))
@@ -63,7 +66,7 @@ while True:
     qtype = reply.q.qtype
     print "------ Reply (%s): %r (%s)" % (str(server),qname.label,QTYPE[qtype])
     print data.encode('hex')
-    print "\n".join([ "  %s" % l for l in str(reply).split("\n")])
+    print with_indent("  ", reply)
     print
     # Send reply to client
     proxy.sendto(data,client)
