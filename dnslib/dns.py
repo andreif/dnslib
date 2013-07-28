@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
-import random,socket,struct 
+import base64
+import random
+import socket
+import datetime
 
 from bit import get_bits,set_bits
 from bimap import Bimap
@@ -427,19 +430,15 @@ class RR(object):
         rname = buffer.decode_name()
         rtype,rclass,ttl,rdlength = buffer.unpack("!HHIH")
         if rtype == QTYPE.OPT:
-            options = []
-            option_buffer = Buffer(buffer.get(rdlength))
-            while option_buffer.remaining() > 4:
-                code,length = option_buffer.unpack("!HH")
-                data = option_buffer.get(length)
-                options.append(EDNSOption(code,data))
-            rdata = options
+            rr_class = OptRR
+            rdata = OPT.parse(buffer, rdlength)
         else:
+            rr_class = cls
             if rdlength:
                 rdata = RDMAP.get(QTYPE[rtype],RD).parse(buffer,rdlength)
             else:
                 rdata = ''
-        return cls(rname,rtype,rclass,ttl,rdata)
+        return rr_class(rname, rtype, rclass, ttl, rdata)
 
     def __init__(self,rname=[],rtype=1,rclass=1,ttl=0,rdata=None):
         self.rname = rname
@@ -473,6 +472,15 @@ class RR(object):
         return "<DNS RR: %r rtype=%s rclass=%s ttl=%d rdata='%s'>" % (
                     self.rname, QTYPE[self.rtype], CLASS[self.rclass], 
                     self.ttl, self.rdata)
+
+
+class OptRR(RR):
+
+    def __str__(self):
+        return ("<DNS OPT RR: %r rtype=%s pl=%s DO=%d options=%s>\n%s" % (
+            self.rname, QTYPE[self.rtype], CLASS[self.rclass], (self.ttl >> 15) & 1, len(self.rdata.options),
+            str(self.rdata))).strip()
+
 
 class RD(object):
 
@@ -693,8 +701,111 @@ class NAPTR(RD):
             self.service,self.regexp,self.replacement or '.'
         )
 
-RDMAP = { 'CNAME':CNAME, 'A':A, 'AAAA':AAAA, 'TXT':TXT, 'MX':MX, 
-          'PTR':PTR, 'SOA':SOA, 'NS':NS, 'NAPTR': NAPTR}
+
+def base64chunked(bytecode, size=56):
+    ascii = base64.b64encode(bytecode)
+    chunks = [ascii[start:start + size] for start in range(0, len(ascii), size)]
+    return " ".join(chunks)
+
+
+def colonized(*args):
+    return ":".join((str(a) for a in args))
+
+
+def ts2str(ts):
+    return datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d%H%M%S')
+
+
+class OPT(RD):
+
+    @classmethod
+    def parse(cls, buffer, length):
+        options = []
+        while length > 4:
+            opt_code, opt_length = buffer.unpack("!HH")
+            length -= 4
+            opt_data = buffer.get(opt_length)
+            length -= opt_length
+            options.append(EDNSOption(opt_code, opt_data))
+        if length:
+            raise Exception("Remaining OPT data: %s" % buffer.get(length).encode('hex'))
+        return cls(options=options)
+
+    def __init__(self, options):
+        self.options = options
+
+    def pack(self, buffer):
+        for opt in self.options:
+            buffer.pack("!HH", opt.code, len(opt.data))
+            buffer.append(opt.data)
+
+    def __str__(self):
+        return " ".join((str(opt) for opt in self.options))
+
+
+class DNSKEY(RD):
+
+    def __init__(self, zk=1, sep=0, ptc=0, alg=0, key=None):
+        self.zk = zk  # Zone Key flag
+        self.sep = sep  # Secure Entry Point flag
+        self.ptc = ptc  # Protocol Field, MUST have value 3, see http://tools.ietf.org/html/rfc4034#section-2.1.2
+        self.alg = alg  # Algorithm field
+        self.key = key  # Public key
+
+    @classmethod
+    def parse(cls, buffer, length):
+        zk, sep, ptc, alg = buffer.unpack("!BBBB")
+        key = buffer.get(length - 4)
+        return cls(zk=zk, sep=sep, ptc=ptc, alg=alg, key=key)
+
+    def pack(self, buffer):
+        buffer.pack("!BBBB", self.zk, self.sep, self.ptc, self.alg)
+        buffer.append(self.key)
+
+    def __str__(self):
+        flags = 256 * self.zk + self.sep
+        return colonized(flags, self.ptc, self.alg, base64chunked(self.key))
+
+
+class RRSIG(RD):
+
+    def __init__(self, tc, alg, lbs, ttl, exp, inc, tag, name, sig):
+        self.tc = tc  # Type Covered field
+        self.alg = alg  # Algorithm Number field
+        self.lbs = lbs  # Labels field
+        self.ttl = ttl  # Original TTL field
+        self.exp = exp  # Signature Expiration field
+        self.inc = inc  # Signature Inception field
+        self.tag = tag  # Key Tag field
+        self.name = name  # Signer's Name field
+        self.sig = sig  # Signature field
+
+    @classmethod
+    def parse(cls, buffer, length):
+        tc, alg, lbs, ttl = buffer.unpack("!HBBI")
+        length -= 2 + 1 + 1 + 4
+        exp, inc, tag = buffer.unpack("!IIH")
+        length -= 4 + 4 + 2
+        name = buffer.decode_name()
+        length -= len(name) + 2
+        sig = buffer.get(length)
+        return cls(tc=tc, alg=alg, lbs=lbs, ttl=ttl, exp=exp, inc=inc, tag=tag, name=name, sig=sig)
+
+    def pack(self, buffer):
+        buffer.pack("!HBBI", self.tc, self.alg, self.lbs, self.ttl)
+        buffer.pack("!IIH", self.exp, self.inc, self.tag)
+        buffer.encode_name(self.name)
+        buffer.append(self.sig)
+
+    def __str__(self):
+        return colonized(QTYPE[self.tc], self.alg, self.lbs, self.ttl, ts2str(self.exp), ts2str(self.inc),
+                         self.tag, base64chunked(self.sig))
+
+
+RDMAP = {'CNAME': CNAME, 'A': A, 'AAAA': AAAA, 'TXT': TXT, 'MX': MX,
+         'PTR': PTR, 'SOA': SOA, 'NS': NS, 'NAPTR': NAPTR, 'OPT': OPT,
+         'DNSKEY': DNSKEY, 'RRSIG': RRSIG}
+
 
 def test_unpack(s):
     """
@@ -703,6 +814,19 @@ def test_unpack(s):
     >>> def unpack(s):
     ...     d = DNSRecord.parse(s.decode('hex'))
     ...     print d
+
+    Short response for query DNSKEY ietf.org
+        >>> unpack('3f0f870000010001000000000469657466036f72670000300001c00c003000010000070801080101030503010001abe34351faa44f0557c2c63f4c1004554bd0433d0517eac73f69fec67ef00072ab21472dd65c1e838617b0a007938a60cbc63a0cacb98425a0f9706eaed6b395b2c1bbad6d7c86db894c5b2e238a394952c685ad2e44bd4bb8c9d9ae45cfd31a71179cdd574243bec1a213e1c2edae67168e863c3aab9dea50da25d8f570aaf69d7d4dae6311a3022edc3215b466d0266ce9ba4a4355969830c026f0ce6fcf8536bd10951132e00e843bae1b220f5dbb27c8151318cef01d35d778c26a36c545c32d52d1538c7e33ee35cfd99cc3717b20a5ee0b605b9e9c5400711051944ea86b290747bae53eaaa6c39f272042c9505a0c71bfc17512e06f24debab1659f1b')
+        <DNS Header: id=0x3f0f type=RESPONSE opcode=QUERY flags=AA,TC,RD rcode=None q=1 a=1 ns=0 ar=0>
+        <DNS Question: 'ietf.org' qtype=DNSKEY qclass=IN>
+        <DNS RR: 'ietf.org' rtype=DNSKEY rclass=IN ttl=1800 rdata='257:3:5:AwEAAavjQ1H6pE8FV8LGP0wQBFVL0EM9BRfqxz9p/sZ+8AByqyFHLdZc HoOGF7CgB5OKYMvGOgysuYQloPlwbq7Ws5WywbutbXyG24lMWy4jijlJ UsaFrS5EvUu4ydmuRc/TGnEXnN1XQkO+waIT4cLtrmcWjoY8Oqud6lDa Jdj1cKr2nX1NrmMRowIu3DIVtGbQJmzpukpDVZaYMMAm8M5vz4U2vRCV ETLgDoQ7rhsiD127J8gVExjO8B0113jCajbFRcMtUtFTjH4z7jXP2ZzD cXsgpe4LYFuenFQAcRBRlE6oaykHR7rlPqqmw58nIELJUFoMcb/BdRLg byTeurFlnxs='>
+
+    Short response for query A ietf.org with DNSSEC
+        >>> unpack('96e7850000010002000000000469657466036f72670000010001c00c000100010000070800040c163a1ec00c002e0001000007080114000105020000070853cea5a551ed64869e04c00c143d6d26bcbc9e86459c31624d792a5d434933726b9917c8b57c645b9fa32bb4ec6d18a8a99bb02be6043e1e57e2c3c10c7af4ff841a90dfae95c37bcd0c615b6d5a5b7bba8a13013daa600aa3c423ac1aa1e22e4b641365038c401f649380074a0312a4a867435583db52ad63a32a87e8cecb134d4816febd7b16673acea8e9242a94ef252986baf1cc49cf1ec37be124f36c27397cbb8f69a4d0ced1cf4e9982ebd79bfa84806eae9a4b12333d03803b318f71c565b2b9af4df85f8f98b1cdd2945e12690647e6a43eb68bd6701b8360896c2aec67cbc291a0af3a3fbb36a9af3a11e8d1463fc8b75b762a0fa88581aa4d969012c23640fdbf929cb583f98b')
+        <DNS Header: id=0x96e7 type=RESPONSE opcode=QUERY flags=AA,RD rcode=None q=1 a=2 ns=0 ar=0>
+        <DNS Question: 'ietf.org' qtype=A qclass=IN>
+        <DNS RR: 'ietf.org' rtype=A rclass=IN ttl=1800 rdata='12.22.58.30'>
+        <DNS RR: 'ietf.org' rtype=RRSIG rclass=IN ttl=1800 rdata='A:5:2:1800:20140722195549:20130722185742:40452:FD1tJry8noZFnDFiTXkqXUNJM3JrmRfItXxkW5+jK7TsbRioqZuwK+YE Ph5X4sPBDHr0/4QakN+ulcN7zQxhW21aW3u6ihMBPapgCqPEI6waoeIu S2QTZQOMQB9kk4AHSgMSpKhnQ1WD21KtY6Mqh+jOyxNNSBb+vXsWZzrO qOkkKpTvJSmGuvHMSc8ew3vhJPNsJzl8u49ppNDO0c9OmYLr15v6hIBu rppLEjM9A4A7MY9xxWWyua9N+F+PmLHN0pReEmkGR+akPraL1nAbg2CJ bCrsZ8vCkaCvOj+7NqmvOhHo0UY/yLdbdioPqIWBqk2WkBLCNkA='>
 
     Standard query A www.google.com
         >>> unpack('d5ad010000010000000000000377777706676f6f676c6503636f6d0000010001')
