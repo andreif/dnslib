@@ -35,6 +35,7 @@ parser.add_option("--port",type=int,default=8053,help="Proxy port (default: 8053
 parser.add_option("--bind",default="127.0.0.1",help="Proxy bind address (default: 127.0.0.1)")
 parser.add_option("--dns",default="8.8.8.8",help="DNS server (default: 8.8.8.8)")
 parser.add_option("--dns_port",type=int,default=53,help="DNS server port (default: 53)")
+parser.add_option("-v", "--verbose", type=int, default=1, help="Verbosity level (default: 1)")
 options,args = parser.parse_args()
 
 proxy = socket.socket(AF_INET, SOCK_DGRAM)
@@ -49,7 +50,8 @@ while True:
     qname = request.q.qname
     qtype = request.q.qtype
     print "------ Request (%s): %r (%s)" % (str(client),qname.label,QTYPE[qtype])
-    print data.encode('hex')
+    if options.verbose > 1:
+        print data.encode('hex')
     print "\n".join([ "  %s" % l for l in str(request).split("\n")])
     # Send request to server
     s = socket.socket(AF_INET, SOCK_DGRAM)
@@ -62,7 +64,8 @@ while True:
     qname = reply.q.qname
     qtype = reply.q.qtype
     print "------ Reply (%s): %r (%s)" % (str(server),qname.label,QTYPE[qtype])
-    print data.encode('hex')
+    if options.verbose > 1:
+        print data.encode('hex')
     print "\n".join([ "  %s" % l for l in str(reply).split("\n")])
     print
     # Send reply to client
