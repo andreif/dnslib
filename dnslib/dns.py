@@ -488,7 +488,8 @@ class RD(object):
         buffer.append(self.data)
 
     def __str__(self):
-        return '%s' % self.data
+        return self.data.encode("hex")
+
 
 class TXT(RD):
 
