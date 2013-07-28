@@ -510,6 +510,10 @@ class TXT(RD):
         buffer.pack("!B",len(self.data))
         buffer.append(self.data)
 
+    def __str__(self):
+        return str(self.data)
+
+
 class A(RD):
 
     @classmethod
@@ -520,6 +524,10 @@ class A(RD):
 
     def pack(self,buffer):
         buffer.pack("!BBBB",*map(int,self.data.split(".")))
+
+    def __str__(self):
+        return str(self.data)
+
 
 class AAAA(RD):
 
