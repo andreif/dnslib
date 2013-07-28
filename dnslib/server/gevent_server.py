@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# coding=utf-8
 
 import gevent
 from gevent import socket
@@ -11,9 +12,6 @@ from dnslib import DNSHeader, DNSRecord, QTYPE
 
 AF_INET = 2
 SOCK_DGRAM = 2
-
-s = socket.socket(AF_INET, SOCK_DGRAM)
-s.bind(('', 53))
 
 IP = "127.0.0.1"
 IPV6 = (0,) * 16
@@ -46,6 +44,11 @@ def dns_handler(s, peer, data):
 
     s.sendto(reply.pack(), peer)
 
-while True:
-    data, peer = s.recvfrom(8192)
-    gevent.spawn(dns_handler, s, peer, data)
+
+if __name__ == "__main__":
+    s = socket.socket(AF_INET, SOCK_DGRAM)
+    s.bind(('', 53))
+
+    while True:
+        data, peer = s.recvfrom(8192)
+        gevent.spawn(dns_handler, s, peer, data)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# coding=utf-8
 
 import socket
 
@@ -39,10 +40,12 @@ def dns_handler(s, peer, data):
 
     s.sendto(reply.pack(), peer)
 
-s = socket.socket(AF_INET, SOCK_DGRAM)
-s.bind(('', 53))
 
-while True:
-    print "====== Waiting for connection"
-    data, peer = s.recvfrom(8192)
-    dns_handler(s,peer,data)
+if __name__ == "__main__":
+    s = socket.socket(AF_INET, SOCK_DGRAM)
+    s.bind(('', 53))
+
+    while True:
+        print "====== Waiting for connection"
+        data, peer = s.recvfrom(8192)
+        dns_handler(s, peer, data)
