@@ -36,6 +36,7 @@ parser.add_option("--bind",default="127.0.0.1",help="Proxy bind address (default
 parser.add_option("--dns",default="8.8.8.8",help="DNS server (default: 8.8.8.8)")
 parser.add_option("--dns_port",type=int,default=53,help="DNS server port (default: 53)")
 parser.add_option("--dnslib", type=int, default=1, help="Use dnslib for querying and responding")
+parser.add_option("--answer", type=int, default=False, help="Skip authority and additional sections")
 options,args = parser.parse_args()
 
 proxy = socket.socket(AF_INET, SOCK_DGRAM)
@@ -72,6 +73,13 @@ while True:
     print data.encode('hex')
     print with_indent("  ", reply)
     print
+    # Remove additional sections
+    if options.answer:
+        reply.ar = []
+        reply.ns = []
+        reply.set_header_qa()
+        print "------ Reply without additional sections:"
+        print reply.pack().encode('hex')
     # Use dnslib to make reply
     if options.dnslib:
         data = reply.pack()
