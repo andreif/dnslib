@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# coding=utf-8
 
 from circuits.net.sockets import UDPServer
 
@@ -37,4 +38,5 @@ class DNSServer(UDPServer):
 
         return reply.pack()
 
-DNSServer(("0.0.0.0", 53)).run()
+if __name__ == "__name__":
+    DNSServer(("0.0.0.0", 53)).run()
