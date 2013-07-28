@@ -30,23 +30,10 @@ from dnslib import DNSRecord, QTYPE
 AF_INET = 2
 SOCK_DGRAM = 2
 
-parser = optparse.OptionParser(usage="Usage: %prog [options]")
-parser.add_option("--port",type=int,default=8053,help="Proxy port (default: 8053)")
-parser.add_option("--bind",default="127.0.0.1",help="Proxy bind address (default: 127.0.0.1)")
-parser.add_option("--dns",default="8.8.8.8",help="DNS server (default: 8.8.8.8)")
-parser.add_option("--dns_port",type=int,default=53,help="DNS server port (default: 53)")
-parser.add_option("-v", "--verbose", type=int, default=1, help="Verbosity level (default: 1)")
-parser.add_option("--dnslib", type=int, default=1, help="Use dnslib for querying and responding")
-parser.add_option("--answer", type=int, default=False, help="Skip authority and additional sections")
-options,args = parser.parse_args()
-
-proxy = socket.socket(AF_INET, SOCK_DGRAM)
-proxy.bind((options.bind,options.port))
-
 with_indent = lambda indent, obj: indent + str(obj).replace("\n", "\n" + indent)
 
 
-while True:
+def serve_request(proxy, options):
     # Wait for client connection
     data,client = proxy.recvfrom(8192)
     if options.verbose > 1:
@@ -88,3 +75,21 @@ while True:
         data = reply.pack()
     # Send reply to client
     proxy.sendto(data,client)
+
+
+if __name__ == "__main__":
+    parser = optparse.OptionParser(usage="Usage: %prog [options]")
+    parser.add_option("--port", type=int, default=8053, help="Proxy port (default: 8053)")
+    parser.add_option("--bind", default="127.0.0.1", help="Proxy bind address (default: 127.0.0.1)")
+    parser.add_option("--dns", default="8.8.8.8", help="DNS server (default: 8.8.8.8)")
+    parser.add_option("--dns_port", type=int, default=53, help="DNS server port (default: 53)")
+    parser.add_option("-v", "--verbose", type=int, default=1, help="Verbosity level (default: 1)")
+    parser.add_option("--dnslib", type=int, default=1, help="Use dnslib for querying and responding")
+    parser.add_option("--answer", type=int, default=False, help="Skip authority and additional sections")
+    options, args = parser.parse_args()
+
+    proxy = socket.socket(AF_INET, SOCK_DGRAM)
+    proxy.bind((options.bind, options.port))
+
+    while True:
+        serve_request(proxy, options)
