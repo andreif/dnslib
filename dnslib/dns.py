@@ -71,53 +71,53 @@ class DNSRecord(object):
 
     To create a DNS Request Packet:
 
-    >>> d = DNSRecord(q=DNSQuestion("google.com"))
+    >>> d = DNSRecord(header=DNSHeader(id=0), q=DNSQuestion("google.com"))
     >>> print d
-    <DNS Header: id=... type=QUERY opcode=QUERY flags=RD rcode=None q=1 a=0 ns=0 ar=0>
+    <DNS Header: id=0x0 type=QUERY opcode=QUERY flags=RD rcode=None q=1 a=0 ns=0 ar=0>
     <DNS Question: 'google.com' qtype=A qclass=IN>
-    >>> d.pack() 
-    '...'
+    >>> d.pack().encode('hex')
+    '00000100000100000000000006676f6f676c6503636f6d0000010001'
 
-    >>> d = DNSRecord(q=DNSQuestion("google.com",QTYPE.MX))
+    >>> d = DNSRecord(header=DNSHeader(id=0), q=DNSQuestion("google.com",QTYPE.MX))
     >>> print d
-    <DNS Header: id=... type=QUERY opcode=QUERY flags=RD rcode=None q=1 a=0 ns=0 ar=0>
+    <DNS Header: id=0x0 type=QUERY opcode=QUERY flags=RD rcode=None q=1 a=0 ns=0 ar=0>
     <DNS Question: 'google.com' qtype=MX qclass=IN>
-    >>> d.pack()
-    '...'
+    >>> d.pack().encode('hex')
+    '00000100000100000000000006676f6f676c6503636f6d00000f0001'
 
     To create a DNS Response Packet:
 
-    >>> d = DNSRecord(DNSHeader(qr=1,aa=1,ra=1),
+    >>> d = DNSRecord(DNSHeader(id=0, qr=1,aa=1,ra=1),
     ...               q=DNSQuestion("abc.com"),
     ...               a=RR("abc.com",rdata=A("1.2.3.4")))
     >>> print d
-    <DNS Header: id=... type=RESPONSE opcode=QUERY flags=AA,RD,RA rcode=None q=1 a=1 ns=0 ar=0>
+    <DNS Header: id=0x0 type=RESPONSE opcode=QUERY flags=AA,RD,RA rcode=None q=1 a=1 ns=0 ar=0>
     <DNS Question: 'abc.com' qtype=A qclass=IN>
     <DNS RR: 'abc.com' rtype=A rclass=IN ttl=0 rdata='1.2.3.4'>
-    >>> d.pack()
-    '...'
+    >>> d.pack().encode('hex')
+    '0000858000010001000000000361626303636f6d0000010001c00c0001000100000000000401020304'
 
     To create a skeleton reply to a DNS query:
 
-    >>> q = DNSRecord(q=DNSQuestion("abc.com",QTYPE.CNAME)) 
+    >>> q = DNSRecord(header=DNSHeader(id=0), q=DNSQuestion("abc.com",QTYPE.CNAME))
     >>> a = q.reply(data="xxx.abc.com")
     >>> print a
-    <DNS Header: id=... type=RESPONSE opcode=QUERY flags=AA,RD,RA rcode=None q=1 a=1 ns=0 ar=0>
+    <DNS Header: id=0x0 type=RESPONSE opcode=QUERY flags=AA,RD,RA rcode=None q=1 a=1 ns=0 ar=0>
     <DNS Question: 'abc.com' qtype=CNAME qclass=IN>
     <DNS RR: 'abc.com' rtype=CNAME rclass=IN ttl=0 rdata='xxx.abc.com'>
-    >>> a.pack()
-    '...'
+    >>> a.pack().encode('hex')
+    '0000858000010001000000000361626303636f6d0000050001c00c0005000100000000000603787878c00c'
 
     Add additional RRs:
 
     >>> a.add_answer(RR('xxx.abc.com',QTYPE.A,rdata=A("1.2.3.4")))
     >>> print a
-    <DNS Header: id=... type=RESPONSE opcode=QUERY flags=AA,RD,RA rcode=None q=1 a=2 ns=0 ar=0>
+    <DNS Header: id=0x0 type=RESPONSE opcode=QUERY flags=AA,RD,RA rcode=None q=1 a=2 ns=0 ar=0>
     <DNS Question: 'abc.com' qtype=CNAME qclass=IN>
     <DNS RR: 'abc.com' rtype=CNAME rclass=IN ttl=0 rdata='xxx.abc.com'>
     <DNS RR: 'xxx.abc.com' rtype=A rclass=IN ttl=0 rdata='1.2.3.4'>
-    >>> a.pack()
-    '...'
+    >>> a.pack().encode('hex')[86:]
+    'c0250001000100000000000401020304'
 
     Changelog:
 
