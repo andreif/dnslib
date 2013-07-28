@@ -1,8 +1,5 @@
 #!/usr/bin/env python
-
-import optparse,socket,sys
-from dnslib import DNSHeader, DNSRecord, QTYPE
-
+# coding=utf-8
 """
     Simple DNS proxy - listens on proxy port and forwards request/reply to real server
     passing data through dnslib and printing the raw/parsed data
@@ -26,6 +23,9 @@ from dnslib import DNSHeader, DNSRecord, QTYPE
     # dig @127.0.0.1 www.google.com -p 8053
 
 """
+import optparse
+import socket
+from dnslib import DNSRecord, QTYPE
 
 AF_INET = 2
 SOCK_DGRAM = 2
