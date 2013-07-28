@@ -35,6 +35,7 @@ parser.add_option("--port",type=int,default=8053,help="Proxy port (default: 8053
 parser.add_option("--bind",default="127.0.0.1",help="Proxy bind address (default: 127.0.0.1)")
 parser.add_option("--dns",default="8.8.8.8",help="DNS server (default: 8.8.8.8)")
 parser.add_option("--dns_port",type=int,default=53,help="DNS server port (default: 53)")
+parser.add_option("--dnslib", type=int, default=1, help="Use dnslib for querying and responding")
 options,args = parser.parse_args()
 
 proxy = socket.socket(AF_INET, SOCK_DGRAM)
@@ -54,6 +55,9 @@ while True:
     print "------ Request (%s): %r (%s)" % (str(client),qname.label,QTYPE[qtype])
     print data.encode('hex')
     print with_indent("  ", request)
+    # Use dnslib to make request
+    if options.dnslib:
+        data = request.pack()
     # Send request to server
     s = socket.socket(AF_INET, SOCK_DGRAM)
     s.sendto(data,(options.dns,options.dns_port))
@@ -68,7 +72,8 @@ while True:
     print data.encode('hex')
     print with_indent("  ", reply)
     print
+    # Use dnslib to make reply
+    if options.dnslib:
+        data = reply.pack()
     # Send reply to client
     proxy.sendto(data,client)
-
-
