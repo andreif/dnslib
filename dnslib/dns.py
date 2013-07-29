@@ -428,10 +428,10 @@ class EDNSOption(object):
 
 
 def ensure_rtype(x):
-    if isinstance(x, RD):
+    if isinstance(x, type) and issubclass(x, RD):
         x = x.__name__
     if isinstance(x, basestring):
-        x = OPCODE[x]
+        x = QTYPE[x]
     return x
 
 
