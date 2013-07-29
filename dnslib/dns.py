@@ -836,9 +836,32 @@ class RRSIG(RD):
                          self.tag, self.name, base64chunked(self.sig))
 
 
+class DS(RD):
+
+    def __init__(self, tag, alg=8, dtype=2, digest=None):
+        self.tag = tag
+        self.alg = alg
+        self.dtype = dtype
+        self.digest = digest
+
+    @classmethod
+    def parse(cls, buffer, length):
+        tag, alg, dtype = buffer.unpack("!HBB")
+        digest_length = {1: 20, 2: 32}[dtype]
+        digest = buffer.get(digest_length)
+        return cls(tag, alg, dtype, digest)
+
+    def pack(self, buffer):
+        buffer.pack("!HBB", self.tag, self.alg, self.dtype)
+        buffer.append(self.digest)
+
+    def __str__(self):
+        return colonized(self.tag, self.alg, self.dtype, base64chunked(self.digest))
+
+
 RDMAP = {'CNAME': CNAME, 'A': A, 'AAAA': AAAA, 'TXT': TXT, 'MX': MX,
          'PTR': PTR, 'SOA': SOA, 'NS': NS, 'NAPTR': NAPTR, 'OPT': OPT,
-         'DNSKEY': DNSKEY, 'RRSIG': RRSIG}
+         'DNSKEY': DNSKEY, 'RRSIG': RRSIG, 'DS': DS}
 
 
 def test_unpack():
