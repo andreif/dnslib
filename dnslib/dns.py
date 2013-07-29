@@ -753,7 +753,7 @@ class OPT(RD):
             raise Exception("Remaining OPT data: %s" % buffer.get(length).encode('hex'))
         return cls(options=options)
 
-    def __init__(self, options):
+    def __init__(self, options=()):
         self.options = options
 
     def pack(self, buffer):
@@ -780,18 +780,30 @@ class DNSKEY(RD):
         key = buffer.get(length - 4)
         return cls(zk=zk, sep=sep, ptc=ptc, alg=alg, key=key)
 
+    def calc_tag(self):
+        """
+            See: http://tools.ietf.org/html/rfc4034#appendix-B
+        """
+        b = DNSBuffer()
+        self.pack(b)
+        ac = 0
+        for i in range(0, len(b.data)):
+            ac += ord(b.data[i]) if (i & 1) else ord(b.data[i]) << 8
+        ac += (ac >> 16) & 0xFFFF
+        return ac & 0xFFFF
+
     def pack(self, buffer):
         buffer.pack("!BBBB", self.zk, self.sep, self.ptc, self.alg)
         buffer.append(self.key)
 
     def __str__(self):
         flags = 256 * self.zk + self.sep
-        return colonized(flags, self.ptc, self.alg, base64chunked(self.key))
+        return colonized(flags, self.ptc, self.alg, base64chunked(self.key), self.calc_tag())
 
 
 class RRSIG(RD):
 
-    def __init__(self, tc, alg, lbs, ttl, exp, inc, tag, name, sig):
+    def __init__(self, tc, alg, lbs, ttl, exp, inc, tag, name, sig=None):
         self.tc = tc  # Type Covered field
         self.alg = alg  # Algorithm Number field
         self.lbs = lbs  # Labels field
