@@ -7,8 +7,7 @@ import datetime
 
 from bit import get_bits,set_bits
 from bimap import Bimap
-from buffer import Buffer
-from label import DNSLabel,DNSLabelError,DNSBuffer
+from label import DNSLabel, DNSBuffer
 
 QTYPE =  Bimap({1:'A', 2:'NS', 5:'CNAME', 6:'SOA', 12:'PTR', 15:'MX',
                 16:'TXT', 17:'RP', 18:'AFSDB', 24:'SIG', 25:'KEY',
@@ -217,6 +216,13 @@ class DNSRecord(object):
         self.ar.append(ar)
         self.set_header_qa()
 
+    def has(self, rtype):
+        rtype = ensure_rtype(rtype)
+        rrs = self.rr + self.ns + self.ar
+        for rr in rrs:
+            if rr.rtype == rtype:
+                return True
+
     def set_header_qa(self):
         self.header.q = len(self.questions)
         self.header.a = len(self.rr)
@@ -396,10 +402,7 @@ class DNSQuestion(object):
         self.qclass = qclass
 
     def set_qname(self,qname):
-        if isinstance(qname,DNSLabel):
-            self._qname = qname
-        else:
-            self._qname = DNSLabel(qname)
+        self._qname = ensure_label(qname)
 
     def get_qname(self):
         return self._qname
@@ -423,6 +426,21 @@ class EDNSOption(object):
     def __str__(self):
         return "<EDNS Option: Code=%d Data=%s>" % (self.code,self.data)
 
+
+def ensure_rtype(x):
+    if isinstance(x, RD):
+        x = x.__name__
+    if isinstance(x, basestring):
+        x = OPCODE[x]
+    return x
+
+
+def ensure_label(x):
+    if not isinstance(x, DNSLabel):
+        x = DNSLabel(x)
+    return x
+
+
 class RR(object):
 
     @classmethod
@@ -430,28 +448,25 @@ class RR(object):
         rname = buffer.decode_name()
         rtype,rclass,ttl,rdlength = buffer.unpack("!HHIH")
         if rtype == QTYPE.OPT:
-            rr_class = OptRR
             rdata = OPT.parse(buffer, rdlength)
+            do = (ttl >> 15) & 1
+            return OptRR(udp_payload=rclass, do=do, rdata=rdata)
         else:
-            rr_class = cls
             if rdlength:
                 rdata = RDMAP.get(QTYPE[rtype],RD).parse(buffer,rdlength)
             else:
                 rdata = ''
-        return rr_class(rname, rtype, rclass, ttl, rdata)
+            return cls(rname, rtype, rclass, ttl, rdata)
 
     def __init__(self,rname=[],rtype=1,rclass=1,ttl=0,rdata=None):
         self.rname = rname
-        self.rtype = rtype
+        self.rtype = ensure_rtype(rtype)
         self.rclass = rclass
         self.ttl = ttl
         self.rdata = rdata
 
     def set_rname(self,rname):
-        if isinstance(rname,DNSLabel):
-            self._rname = rname
-        else:
-            self._rname = DNSLabel(rname)
+        self._rname = ensure_label(rname)
 
     def get_rname(self):
         return self._rname
@@ -476,10 +491,29 @@ class RR(object):
 
 class OptRR(RR):
 
+    def __init__(self, udp_payload=4096, do=1, rdata=None):
+        self.rname = ''
+        self.rtype = QTYPE.OPT
+        self.rclass = udp_payload
+        self.ttl = do << 15
+        self.rdata = rdata
+
+    @property
+    def flag_do(self):
+        return (self.ttl >> 15) & 1
+
+    @property
+    def udp_payload(self):
+        return self.rclass
+
+    def pack(self,buffer):
+        b = DNSBuffer()
+        super(OptRR, self).pack(b)
+        buffer.append(b.data[1:])
+
     def __str__(self):
-        return ("<DNS OPT RR: %r rtype=%s pl=%s DO=%d options=%s>\n%s" % (
-            self.rname, QTYPE[self.rtype], CLASS[self.rclass], (self.ttl >> 15) & 1, len(self.rdata.options),
-            str(self.rdata))).strip()
+        return ("<DNS OPT RR: EDNS(0) rtype=OPT pl=%s DO=%d options=%s>\n%s" % (
+            self.rclass, self.flag_do, len(self.rdata.options), str(self.rdata))).strip()
 
 
 class RD(object):
@@ -569,10 +603,7 @@ class MX(RD):
         self.preference = preference
 
     def set_mx(self,mx):
-        if isinstance(mx,DNSLabel):
-            self._mx = mx
-        else:
-            self._mx = DNSLabel(mx)
+        self._mx = ensure_label(mx)
 
     def get_mx(self):
         return self._mx
@@ -597,10 +628,7 @@ class CNAME(RD):
         self.label = label
 
     def set_label(self,label):
-        if isinstance(label,DNSLabel):
-            self._label = label
-        else:
-            self._label = DNSLabel(label)
+        self._label = ensure_label(label)
 
     def get_label(self):
         return self._label
@@ -634,10 +662,7 @@ class SOA(RD):
         self.times = times or (0,0,0,0,0)
 
     def set_mname(self,mname):
-        if isinstance(mname,DNSLabel):
-            self._mname = mname
-        else:
-            self._mname = DNSLabel(mname)
+        self._mname = ensure_label(mname)
 
     def get_mname(self):
         return self._mname
@@ -645,10 +670,7 @@ class SOA(RD):
     mname = property(get_mname,set_mname)
 
     def set_rname(self,rname):
-        if isinstance(rname,DNSLabel):
-            self._rname = rname
-        else:
-            self._rname = DNSLabel(rname)
+        self._rname = ensure_label(rname)
 
     def get_rname(self):
         return self._rname
@@ -745,7 +767,7 @@ class OPT(RD):
 
 class DNSKEY(RD):
 
-    def __init__(self, zk=1, sep=0, ptc=0, alg=0, key=None):
+    def __init__(self, zk=1, sep=0, ptc=3, alg=8, key=None):
         self.zk = zk  # Zone Key flag
         self.sep = sep  # Secure Entry Point flag
         self.ptc = ptc  # Protocol Field, MUST have value 3, see http://tools.ietf.org/html/rfc4034#section-2.1.2
@@ -794,12 +816,12 @@ class RRSIG(RD):
     def pack(self, buffer):
         buffer.pack("!HBBI", self.tc, self.alg, self.lbs, self.ttl)
         buffer.pack("!IIH", self.exp, self.inc, self.tag)
-        buffer.encode_name(self.name)
+        buffer.encode_name(self.name, allow_cache=False)
         buffer.append(self.sig)
 
     def __str__(self):
         return colonized(QTYPE[self.tc], self.alg, self.lbs, self.ttl, ts2str(self.exp), ts2str(self.inc),
-                         self.tag, base64chunked(self.sig))
+                         self.tag, self.name, base64chunked(self.sig))
 
 
 RDMAP = {'CNAME': CNAME, 'A': A, 'AAAA': AAAA, 'TXT': TXT, 'MX': MX,
@@ -807,13 +829,19 @@ RDMAP = {'CNAME': CNAME, 'A': A, 'AAAA': AAAA, 'TXT': TXT, 'MX': MX,
          'DNSKEY': DNSKEY, 'RRSIG': RRSIG}
 
 
-def test_unpack(s):
+def test_unpack():
     """
     Test decoding with sample DNS packets captured from Wireshark
 
     >>> def unpack(s):
     ...     d = DNSRecord.parse(s.decode('hex'))
     ...     print d
+
+    Test
+        >>> unpack('e9fa010000010000000000010469657466036f726700000100010000291000000080000000')
+        <DNS Header: id=0xe9fa type=QUERY opcode=QUERY flags=RD rcode=None q=1 a=0 ns=0 ar=1>
+        <DNS Question: 'ietf.org' qtype=A qclass=IN>
+        <DNS OPT RR: EDNS(0) rtype=OPT pl=4096 DO=1 options=0>
 
     Short response for query DNSKEY ietf.org
         >>> unpack('3f0f870000010001000000000469657466036f72670000300001c00c003000010000070801080101030503010001abe34351faa44f0557c2c63f4c1004554bd0433d0517eac73f69fec67ef00072ab21472dd65c1e838617b0a007938a60cbc63a0cacb98425a0f9706eaed6b395b2c1bbad6d7c86db894c5b2e238a394952c685ad2e44bd4bb8c9d9ae45cfd31a71179cdd574243bec1a213e1c2edae67168e863c3aab9dea50da25d8f570aaf69d7d4dae6311a3022edc3215b466d0266ce9ba4a4355969830c026f0ce6fcf8536bd10951132e00e843bae1b220f5dbb27c8151318cef01d35d778c26a36c545c32d52d1538c7e33ee35cfd99cc3717b20a5ee0b605b9e9c5400711051944ea86b290747bae53eaaa6c39f272042c9505a0c71bfc17512e06f24debab1659f1b')
@@ -826,7 +854,7 @@ def test_unpack(s):
         <DNS Header: id=0x96e7 type=RESPONSE opcode=QUERY flags=AA,RD rcode=None q=1 a=2 ns=0 ar=0>
         <DNS Question: 'ietf.org' qtype=A qclass=IN>
         <DNS RR: 'ietf.org' rtype=A rclass=IN ttl=1800 rdata='12.22.58.30'>
-        <DNS RR: 'ietf.org' rtype=RRSIG rclass=IN ttl=1800 rdata='A:5:2:1800:20140722195549:20130722185742:40452:FD1tJry8noZFnDFiTXkqXUNJM3JrmRfItXxkW5+jK7TsbRioqZuwK+YE Ph5X4sPBDHr0/4QakN+ulcN7zQxhW21aW3u6ihMBPapgCqPEI6waoeIu S2QTZQOMQB9kk4AHSgMSpKhnQ1WD21KtY6Mqh+jOyxNNSBb+vXsWZzrO qOkkKpTvJSmGuvHMSc8ew3vhJPNsJzl8u49ppNDO0c9OmYLr15v6hIBu rppLEjM9A4A7MY9xxWWyua9N+F+PmLHN0pReEmkGR+akPraL1nAbg2CJ bCrsZ8vCkaCvOj+7NqmvOhHo0UY/yLdbdioPqIWBqk2WkBLCNkA='>
+        <DNS RR: 'ietf.org' rtype=RRSIG rclass=IN ttl=1800 rdata='A:5:2:1800:20140722195549:20130722185742:40452:ietf.org:FD1tJry8noZFnDFiTXkqXUNJM3JrmRfItXxkW5+jK7TsbRioqZuwK+YE Ph5X4sPBDHr0/4QakN+ulcN7zQxhW21aW3u6ihMBPapgCqPEI6waoeIu S2QTZQOMQB9kk4AHSgMSpKhnQ1WD21KtY6Mqh+jOyxNNSBb+vXsWZzrO qOkkKpTvJSmGuvHMSc8ew3vhJPNsJzl8u49ppNDO0c9OmYLr15v6hIBu rppLEjM9A4A7MY9xxWWyua9N+F+PmLHN0pReEmkGR+akPraL1nAbg2CJ bCrsZ8vCkaCvOj+7NqmvOhHo0UY/yLdbdioPqIWBqk2WkBLCNkA='>
 
     Standard query A www.google.com
         >>> unpack('d5ad010000010000000000000377777706676f6f676c6503636f6d0000010001')
@@ -905,7 +933,6 @@ def test_unpack(s):
         <DNS Question: '0.0.0.0.1.1.1.3.9.3.0.1.8.7.8.e164.org' qtype=NAPTR qclass=IN>
         <DNS RR: '0.0.0.0.1.1.1.3.9.3.0.1.8.7.8.e164.org' rtype=NAPTR rclass=IN ttl=42659 rdata='100 10 "u" "E2U+SIP" "!^\+?(.*)$!sip:\\\\1@fwd.pulver.com!" .'>
     """
-    pass
 
 
 if __name__ == '__main__':

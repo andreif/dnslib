@@ -110,7 +110,7 @@ class DNSBuffer(Buffer):
                     done = True
         return DNSLabel(label)
 
-    def encode_name(self,name):
+    def encode_name(self, name, allow_cache=False):
         """
             Encode label and store at end of buffer (compressing
             cached elements where needed) and store elements
@@ -122,14 +122,15 @@ class DNSBuffer(Buffer):
             raise DNSLabelError("Domain label too long: %r" % name)
         name = list(name.label)
         while name:
-            if self.names.has_key(tuple(name)):
+            if self.names.has_key(tuple(name)) and allow_cache:
                 # Cached - set pointer
                 pointer = self.names[tuple(name)]
                 pointer = set_bits(pointer,3,14,2)
                 self.pack("!H",pointer)
                 return
             else:
-                self.names[tuple(name)] = self.offset
+                if allow_cache:
+                    self.names[tuple(name)] = self.offset
                 element = name.pop(0)
                 if len(element) > 63:
                     raise DNSLabelError("Label component too long: %r" % element)
