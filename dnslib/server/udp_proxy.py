@@ -47,7 +47,12 @@ def serve_request(proxy, options):
     print with_indent("  ", request)
     # Use dnslib to make request
     if options.dnslib:
-        data = request.pack()
+        d = request.pack()
+        if data != d:
+            print 'REQUEST DIFF!'
+            print data.encode('hex')
+            print d.encode('hex')
+        data = d
     # Send request to server
     s = socket.socket(AF_INET, SOCK_DGRAM)
     s.sendto(data,(options.dns,options.dns_port))
@@ -72,7 +77,16 @@ def serve_request(proxy, options):
         print reply.pack().encode('hex')
     # Use dnslib to make reply
     if options.dnslib:
-        data = reply.pack()
+        d = reply.pack()
+        try:
+            DNSRecord.parse(d)
+        except:
+            print 'FAILED PACKET'
+            print 'orig:'
+            print data.encode('hex')
+            print 'rend:'
+            print d.encode('hex')
+        data = d
     # Send reply to client
     proxy.sendto(data,client)
 
