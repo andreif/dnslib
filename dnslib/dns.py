@@ -506,11 +506,6 @@ class OptRR(RR):
     def udp_payload(self):
         return self.rclass
 
-    def pack(self,buffer):
-        b = DNSBuffer()
-        super(OptRR, self).pack(b)
-        buffer.append(b.data[1:])
-
     def __str__(self):
         return ("<DNS OPT RR: EDNS(0) rtype=OPT pl=%s DO=%d options=%s>\n%s" % (
             self.rclass, self.flag_do, len(self.rdata.options), str(self.rdata))).strip()

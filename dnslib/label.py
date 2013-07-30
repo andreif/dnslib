@@ -59,8 +59,10 @@ class DNSBuffer(Buffer):
     >>> b.encode_name("xxx.yyy.zzz")
     >>> b.encode_name("zzz.xxx.bbb.ccc")
     >>> b.encode_name("aaa.xxx.bbb.ccc")
+    >>> b.encode_name("")
+    >>> b.encode_name(".")
     >>> b.data.encode("hex")
-    '036161610362626203636363000378787803797979037a7a7a00037a7a7a03787878c00403616161c01e'
+    '036161610362626203636363000378787803797979037a7a7a00037a7a7a03787878c00403616161c01e0000'
     >>> b.offset = 0
     >>> b.decode_name()
     'aaa.bbb.ccc'
@@ -70,6 +72,10 @@ class DNSBuffer(Buffer):
     'zzz.xxx.bbb.ccc'
     >>> b.decode_name()
     'aaa.xxx.bbb.ccc'
+    >>> b.decode_name()
+    ''
+    >>> b.decode_name()
+    ''
 
     >>> b = DNSBuffer()
     >>> b.encode_name(['a.aa','b.bb','c.cc'])
@@ -110,7 +116,7 @@ class DNSBuffer(Buffer):
                     done = True
         return DNSLabel(label)
 
-    def encode_name(self, name, allow_cache=False):
+    def encode_name(self, name, allow_cache=True):
         """
             Encode label and store at end of buffer (compressing
             cached elements where needed) and store elements
@@ -120,6 +126,9 @@ class DNSBuffer(Buffer):
             name = DNSLabel(name)
         if len(name) > 253:
             raise DNSLabelError("Domain label too long: %r" % name)
+        if str(name) in ['', '.']:
+            self.append("\x00")
+            return
         name = list(name.label)
         while name:
             if self.names.has_key(tuple(name)) and allow_cache:
