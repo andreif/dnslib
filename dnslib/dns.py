@@ -719,9 +719,19 @@ class NAPTR(RD):
         )
 
 
+def chunk(s, size):
+    return [s[start:start + size] for start in range(0, len(s), size)]
+
+
 def base64chunked(bytecode, size=56):
     ascii = base64.b64encode(bytecode)
-    chunks = [ascii[start:start + size] for start in range(0, len(ascii), size)]
+    chunks = chunk(ascii, size)
+    return " ".join(chunks)
+
+
+def hexchunked(bytecode, size=56):
+    h = bytecode.encode('hex')
+    chunks = chunk(h, size)
     return " ".join(chunks)
 
 
@@ -851,7 +861,7 @@ class DS(RD):
         buffer.append(self.digest)
 
     def __str__(self):
-        return colonized(self.tag, self.alg, self.dtype, base64chunked(self.digest))
+        return colonized(self.tag, self.alg, self.dtype, hexchunked(self.digest))
 
 
 RDMAP = {'CNAME': CNAME, 'A': A, 'AAAA': AAAA, 'TXT': TXT, 'MX': MX,
@@ -877,7 +887,7 @@ def test_unpack():
         >>> unpack('3f0f870000010001000000000469657466036f72670000300001c00c003000010000070801080101030503010001abe34351faa44f0557c2c63f4c1004554bd0433d0517eac73f69fec67ef00072ab21472dd65c1e838617b0a007938a60cbc63a0cacb98425a0f9706eaed6b395b2c1bbad6d7c86db894c5b2e238a394952c685ad2e44bd4bb8c9d9ae45cfd31a71179cdd574243bec1a213e1c2edae67168e863c3aab9dea50da25d8f570aaf69d7d4dae6311a3022edc3215b466d0266ce9ba4a4355969830c026f0ce6fcf8536bd10951132e00e843bae1b220f5dbb27c8151318cef01d35d778c26a36c545c32d52d1538c7e33ee35cfd99cc3717b20a5ee0b605b9e9c5400711051944ea86b290747bae53eaaa6c39f272042c9505a0c71bfc17512e06f24debab1659f1b')
         <DNS Header: id=0x3f0f type=RESPONSE opcode=QUERY flags=AA,TC,RD rcode=None q=1 a=1 ns=0 ar=0>
         <DNS Question: 'ietf.org' qtype=DNSKEY qclass=IN>
-        <DNS RR: 'ietf.org' rtype=DNSKEY rclass=IN ttl=1800 rdata='257:3:5:AwEAAavjQ1H6pE8FV8LGP0wQBFVL0EM9BRfqxz9p/sZ+8AByqyFHLdZc HoOGF7CgB5OKYMvGOgysuYQloPlwbq7Ws5WywbutbXyG24lMWy4jijlJ UsaFrS5EvUu4ydmuRc/TGnEXnN1XQkO+waIT4cLtrmcWjoY8Oqud6lDa Jdj1cKr2nX1NrmMRowIu3DIVtGbQJmzpukpDVZaYMMAm8M5vz4U2vRCV ETLgDoQ7rhsiD127J8gVExjO8B0113jCajbFRcMtUtFTjH4z7jXP2ZzD cXsgpe4LYFuenFQAcRBRlE6oaykHR7rlPqqmw58nIELJUFoMcb/BdRLg byTeurFlnxs='>
+        <DNS RR: 'ietf.org' rtype=DNSKEY rclass=IN ttl=1800 rdata='257:3:5:AwEAAavjQ1H6pE8FV8LGP0wQBFVL0EM9BRfqxz9p/sZ+8AByqyFHLdZc HoOGF7CgB5OKYMvGOgysuYQloPlwbq7Ws5WywbutbXyG24lMWy4jijlJ UsaFrS5EvUu4ydmuRc/TGnEXnN1XQkO+waIT4cLtrmcWjoY8Oqud6lDa Jdj1cKr2nX1NrmMRowIu3DIVtGbQJmzpukpDVZaYMMAm8M5vz4U2vRCV ETLgDoQ7rhsiD127J8gVExjO8B0113jCajbFRcMtUtFTjH4z7jXP2ZzD cXsgpe4LYFuenFQAcRBRlE6oaykHR7rlPqqmw58nIELJUFoMcb/BdRLg byTeurFlnxs=:45586'>
 
     Short response for query A ietf.org with DNSSEC
         >>> unpack('96e7850000010002000000000469657466036f72670000010001c00c000100010000070800040c163a1ec00c002e0001000007080114000105020000070853cea5a551ed64869e04c00c143d6d26bcbc9e86459c31624d792a5d434933726b9917c8b57c645b9fa32bb4ec6d18a8a99bb02be6043e1e57e2c3c10c7af4ff841a90dfae95c37bcd0c615b6d5a5b7bba8a13013daa600aa3c423ac1aa1e22e4b641365038c401f649380074a0312a4a867435583db52ad63a32a87e8cecb134d4816febd7b16673acea8e9242a94ef252986baf1cc49cf1ec37be124f36c27397cbb8f69a4d0ced1cf4e9982ebd79bfa84806eae9a4b12333d03803b318f71c565b2b9af4df85f8f98b1cdd2945e12690647e6a43eb68bd6701b8360896c2aec67cbc291a0af3a3fbb36a9af3a11e8d1463fc8b75b762a0fa88581aa4d969012c23640fdbf929cb583f98b')
