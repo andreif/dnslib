@@ -458,9 +458,12 @@ class RR(object):
                 rdata = ''
             return cls(rname, rtype, rclass, ttl, rdata)
 
-    def __init__(self,rname=[],rtype=1,rclass=1,ttl=0,rdata=None):
+    def __init__(self, rname=[], rtype=None, rclass=1, ttl=0, rdata=None):
         self.rname = rname
-        self.rtype = ensure_rtype(rtype)
+        if issubclass(type(rdata), RD):
+            self.rtype = ensure_rtype(type(rdata))
+        else:
+            self.rtype = ensure_rtype(rtype)
         self.rclass = rclass
         self.ttl = ttl
         self.rdata = rdata
@@ -770,45 +773,53 @@ class OPT(RD):
         return " ".join((str(opt) for opt in self.options))
 
 
+def calc_tag(rdata):
+    """
+        See: http://tools.ietf.org/html/rfc4034#appendix-B
+    """
+    if isinstance(rdata, RD):
+        buf = DNSBuffer()
+        rdata.pack(buf)
+        rdata = buf.data
+    ac = 0
+    for i in range(0, len(rdata)):
+        ac += ord(rdata[i]) if (i & 1) else ord(rdata[i]) << 8
+    ac += (ac >> 16) & 0xFFFF
+    return ac & 0xFFFF
+
+
 class DNSKEY(RD):
 
     def __init__(self, zk=1, sep=0, ptc=3, alg=8, key=None):
-        self.zk = zk  # Zone Key flag
-        self.sep = sep  # Secure Entry Point flag
+        self.zk = bool(zk)  # Zone Key flag
+        self.sep = bool(sep)  # Secure Entry Point flag
         self.ptc = ptc  # Protocol Field, MUST have value 3, see http://tools.ietf.org/html/rfc4034#section-2.1.2
         self.alg = alg  # Algorithm field
         self.key = key  # Public key
 
     @classmethod
     def parse(cls, buffer, length):
-        zk, sep, ptc, alg = buffer.unpack("!BBBB")
+        flags, ptc, alg = buffer.unpack("!HBB")
+        zk = (flags >> 8) & 1
+        sep = flags & 1
         key = buffer.get(length - 4)
         return cls(zk=zk, sep=sep, ptc=ptc, alg=alg, key=key)
 
-    def calc_tag(self):
-        """
-            See: http://tools.ietf.org/html/rfc4034#appendix-B
-        """
-        b = DNSBuffer()
-        self.pack(b)
-        ac = 0
-        for i in range(0, len(b.data)):
-            ac += ord(b.data[i]) if (i & 1) else ord(b.data[i]) << 8
-        ac += (ac >> 16) & 0xFFFF
-        return ac & 0xFFFF
+    @property
+    def flags(self):
+        return (bool(self.zk) << 8) + bool(self.sep)
 
     def pack(self, buffer):
-        buffer.pack("!BBBB", self.zk, self.sep, self.ptc, self.alg)
+        buffer.pack("!HBB", self.flags, self.ptc, self.alg)
         buffer.append(self.key)
 
     def __str__(self):
-        flags = 256 * self.zk + self.sep
-        return colonized(flags, self.ptc, self.alg, base64chunked(self.key), self.calc_tag())
+        return colonized(self.flags, self.ptc, self.alg, base64chunked(self.key), calc_tag(self))
 
 
 class RRSIG(RD):
 
-    def __init__(self, tc, alg, lbs, ttl, exp, inc, tag, name, sig=None):
+    def __init__(self, tc, alg, lbs, ttl, exp, inc, tag, name, sig=''):
         self.tc = tc  # Type Covered field
         self.alg = alg  # Algorithm Number field
         self.lbs = lbs  # Labels field
@@ -843,10 +854,10 @@ class RRSIG(RD):
 
 class DS(RD):
 
-    def __init__(self, tag, alg=8, dtype=2, digest=None):
-        self.tag = tag
-        self.alg = alg
-        self.dtype = dtype
+    def __init__(self, key_tag, algorithm=8, digest_type=2, digest=None):
+        self.key_tag = key_tag
+        self.algorithm = algorithm
+        self.digest_type = digest_type  # digest type
         self.digest = digest
 
     @classmethod
@@ -857,11 +868,11 @@ class DS(RD):
         return cls(tag, alg, dtype, digest)
 
     def pack(self, buffer):
-        buffer.pack("!HBB", self.tag, self.alg, self.dtype)
+        buffer.pack("!HBB", self.key_tag, self.algorithm, self.digest_type)
         buffer.append(self.digest)
 
     def __str__(self):
-        return colonized(self.tag, self.alg, self.dtype, hexchunked(self.digest))
+        return colonized(self.key_tag, self.algorithm, self.digest_type, hexchunked(self.digest))
 
 
 RDMAP = {'CNAME': CNAME, 'A': A, 'AAAA': AAAA, 'TXT': TXT, 'MX': MX,
