@@ -841,11 +841,12 @@ class RRSIG(RD):
         sig = buffer.get(length)
         return cls(tc=tc, alg=alg, lbs=lbs, ttl=ttl, exp=exp, inc=inc, tag=tag, name=name, sig=sig)
 
-    def pack(self, buffer):
+    def pack(self, buffer, with_sig=True):
         buffer.pack("!HBBI", self.tc, self.alg, self.lbs, self.ttl)
         buffer.pack("!IIH", self.exp, self.inc, self.tag)
         buffer.encode_name(self.name, allow_cache=False)
-        buffer.append(self.sig)
+        if with_sig:
+            buffer.append(self.sig)
 
     def __str__(self):
         return colonized(QTYPE[self.tc], self.alg, self.lbs, self.ttl, ts2str(self.exp), ts2str(self.inc),
