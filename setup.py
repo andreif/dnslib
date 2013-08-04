@@ -1,12 +1,9 @@
 # coding=utf-8
+import dnslib
 try:
     from setuptools import setup, Command
 except ImportError:
-    from distutils.core import Command, setup
-
-import dnslib
-long_description = dnslib.DNSRecord.__doc__.rstrip() + "\n"
-version = dnslib.DNSRecord.version
+    from distutils.core import setup, Command
 
 
 class GenerateReadme(Command):
@@ -20,18 +17,19 @@ class GenerateReadme(Command):
         pass
 
     def run(self):
-        open('README', 'w').write(long_description)
+        open('README', 'w').write(dnslib.__doc__)
 
 
-setup(name='dnslib',
-      version=version,
-      description="Simple library to encode/decode DNS wire-format packets",
-      long_description=long_description,
-      author="Paul Chakravarti",
-      author_email='paul.chakravarti@gmail.com',
-      url='http://bitbucket.org/paulc/dnslib/',
-      cmdclass={'readme': GenerateReadme},
-      packages=['dnslib'],
-      license='BSD',
-      classifiers=['Topic :: Internet :: Name Service (DNS)'],
-      )
+setup(
+    name='dnslib',
+    version=dnslib.VERSION,
+    description="Simple library to encode/decode DNS wire-format packets",
+    long_description=dnslib.__doc__,
+    author="Paul Chakravarti",
+    author_email='paul.chakravarti@gmail.com',
+    url='http://bitbucket.org/paulc/dnslib/',
+    cmdclass={'readme': GenerateReadme},
+    packages=['dnslib'],
+    license='BSD',
+    classifiers=['Topic :: Internet :: Name Service (DNS)'],
+)

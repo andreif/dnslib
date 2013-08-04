@@ -5,6 +5,7 @@ class DNSLabelError(Exception):
     pass
 
 
+# TODO: check if needs to be renamed to DNSName or something
 class DNSLabel(object):
     """
     Container for DNS label supporting arbitary label chars (including '.')
@@ -25,8 +26,12 @@ class DNSLabel(object):
     def __init__(self, label):
         if isinstance(label, (list, tuple)):
             self.label = tuple(label)
+        elif isinstance(label, basestring):
+            self.label = tuple(label.split('.'))
+        elif isinstance(label, self.__class__):
+            self.label = tuple(self.label)
         else:
-            self.label = tuple(label.split("."))
+            raise DNSLabelError("Wrong label type: %r" % label)
 
     def validate(self):
         if len(self) > 253:
