@@ -29,7 +29,7 @@ class DNSLabel(object):
         elif isinstance(label, basestring):
             self.label = tuple(label.split('.'))
         elif isinstance(label, self.__class__):
-            self.label = tuple(self.label)
+            self.label = tuple(label.label)
         else:
             raise DNSLabelError("Wrong label type: %r" % label)
 
