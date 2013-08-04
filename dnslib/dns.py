@@ -175,12 +175,13 @@ class DNSRecord(object):
             ns.append(RR.parse(buffer))
         for i in range(header.ar):
             ar.append(RR.parse(buffer))
-        return cls(header,questions,rr,ns=ns,ar=ar)
+        return cls(header,questions,rr,ns=ns,ar=ar, packet=packet)
 
-    def __init__(self,header=None,questions=None,rr=None,q=None,a=None,ns=None,ar=None):
+    def __init__(self,header=None,questions=None,rr=None,q=None,a=None,ns=None,ar=None, packet=None):
         """
             Create DNSRecord
         """
+        self.packet = packet
         self.header = header or DNSHeader()
         self.questions = questions or []
         self.rr = rr or []
@@ -476,13 +477,13 @@ class RR(object):
 
     rname = property(get_rname,set_rname)
 
-    def pack(self,buffer):
-        buffer.encode_name(self.rname)
+    def pack(self, buffer, allow_cache=True):
+        buffer.encode_name(self.rname, allow_cache=allow_cache)
         buffer.pack("!HHI",self.rtype,self.rclass,self.ttl)
         rdlength_ptr = buffer.offset
         buffer.pack("!H",0)
         start = buffer.offset
-        self.rdata.pack(buffer)
+        self.rdata.pack(buffer, allow_cache=allow_cache)
         end = buffer.offset
         buffer.update(rdlength_ptr,"!H",end-start)
 
@@ -490,6 +491,10 @@ class RR(object):
         return "<DNS RR: %r rtype=%s rclass=%s ttl=%d rdata='%s'>" % (
                     self.rname, QTYPE[self.rtype], CLASS[self.rclass], 
                     self.ttl, self.rdata)
+
+    def __repr__(self):
+        return super(self.__class__, self).__repr__().replace('.RR', '.RR ' + QTYPE[self.rtype])
+
 
 
 class OptRR(RR):
@@ -524,7 +529,7 @@ class RD(object):
     def __init__(self,data=""):
         self.data = data
 
-    def pack(self,buffer):
+    def pack(self, buffer, allow_cache=True):
         buffer.append(self.data)
 
     def __str__(self):
@@ -544,7 +549,7 @@ class TXT(RD):
                                     (txtlength,length))
         return cls(data)
 
-    def pack(self,buffer):
+    def pack(self, buffer, allow_cache=True):
         if len(self.data) > 255:
             raise DNSError("TXT record too long: %s" % self.data)
         buffer.pack("!B",len(self.data))
@@ -562,7 +567,7 @@ class A(RD):
         data = "%d.%d.%d.%d" % ip
         return cls(data)
 
-    def pack(self,buffer):
+    def pack(self, buffer, allow_cache=True):
         buffer.pack("!BBBB",*map(int,self.data.split(".")))
 
     def __str__(self):
@@ -581,7 +586,7 @@ class AAAA(RD):
         data = buffer.unpack("!16B")
         return cls(data)
  
-    def pack(self,buffer):
+    def pack(self, buffer, allow_cache=True):
         buffer.pack("!16B",*self.data)
 
     def __str__(self):
@@ -608,9 +613,9 @@ class MX(RD):
 
     mx = property(get_mx,set_mx)
 
-    def pack(self,buffer):
+    def pack(self, buffer, allow_cache=True):
         buffer.pack("!H",self.preference)
-        buffer.encode_name(self.mx)
+        buffer.encode_name(self.mx, allow_cache=allow_cache)
         
     def __str__(self):
         return "%d:%s" % (self.preference,self.mx)
@@ -633,8 +638,8 @@ class CNAME(RD):
 
     label = property(get_label,set_label)
 
-    def pack(self,buffer):
-        buffer.encode_name(self.label)
+    def pack(self, buffer, allow_cache=True):
+        buffer.encode_name(self.label, allow_cache=allow_cache)
 
     def __str__(self):
         return "%s" % (self.label)
@@ -675,9 +680,9 @@ class SOA(RD):
 
     rname = property(get_rname,set_rname)
 
-    def pack(self,buffer):
-        buffer.encode_name(self.mname)
-        buffer.encode_name(self.rname)
+    def pack(self, buffer, allow_cache=True):
+        buffer.encode_name(self.mname, allow_cache=allow_cache)
+        buffer.encode_name(self.rname, allow_cache=allow_cache)
         buffer.pack("!IIIII", *self.times)
 
     def __str__(self):
@@ -705,7 +710,7 @@ class NAPTR(RD):
         replacement = buffer.decode_name()
         return cls(order, preference, flags, service, regexp, replacement)
 
-    def pack(self, buffer):
+    def pack(self, buffer, allow_cache=True):
         buffer.pack('!HH', self.order, self.preference)
         buffer.pack('!B', len(self.flags))
         buffer.append(self.flags)
@@ -713,7 +718,7 @@ class NAPTR(RD):
         buffer.append(self.service)
         buffer.pack('!B', len(self.regexp))
         buffer.append(self.regexp)
-        buffer.encode_name(self.replacement)
+        buffer.encode_name(self.replacement, allow_cache=allow_cache)
 
     def __str__(self):
         return '%d %d "%s" "%s" "%s" %s' %(
@@ -764,7 +769,7 @@ class OPT(RD):
     def __init__(self, options=()):
         self.options = options
 
-    def pack(self, buffer):
+    def pack(self, buffer, allow_cache=True):
         for opt in self.options:
             buffer.pack("!HH", opt.code, len(opt.data))
             buffer.append(opt.data)
@@ -800,16 +805,17 @@ class DNSKEY(RD):
     @classmethod
     def parse(cls, buffer, length):
         flags, ptc, alg = buffer.unpack("!HBB")
+        length -= 4
         zk = (flags >> 8) & 1
         sep = flags & 1
-        key = buffer.get(length - 4)
+        key = buffer.get(length)
         return cls(zk=zk, sep=sep, ptc=ptc, alg=alg, key=key)
 
     @property
     def flags(self):
         return (bool(self.zk) << 8) + bool(self.sep)
 
-    def pack(self, buffer):
+    def pack(self, buffer, allow_cache=True):
         buffer.pack("!HBB", self.flags, self.ptc, self.alg)
         buffer.append(self.key)
 
@@ -841,7 +847,7 @@ class RRSIG(RD):
         sig = buffer.get(length)
         return cls(tc=tc, alg=alg, lbs=lbs, ttl=ttl, exp=exp, inc=inc, tag=tag, name=name, sig=sig)
 
-    def pack(self, buffer, with_sig=True):
+    def pack(self, buffer, with_sig=True, allow_cache=True):
         buffer.pack("!HBBI", self.tc, self.alg, self.lbs, self.ttl)
         buffer.pack("!IIH", self.exp, self.inc, self.tag)
         buffer.encode_name(self.name, allow_cache=False)
@@ -868,7 +874,7 @@ class DS(RD):
         digest = buffer.get(digest_length)
         return cls(tag, alg, dtype, digest)
 
-    def pack(self, buffer):
+    def pack(self, buffer, allow_cache=True):
         buffer.pack("!HBB", self.key_tag, self.algorithm, self.digest_type)
         buffer.append(self.digest)
 
