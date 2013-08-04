@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
-
+# coding=utf-8
 import base64
 import random
 import socket
 import datetime
 
-from bit import get_bits,set_bits
-from bimap import Bimap
-from label import DNSLabel, DNSBuffer
+from .bit import get_bits, set_bits
+from .bimap import Bimap
+from .label import DNSLabel
+from .buffer import DNSBuffer
 
 QTYPE =  Bimap({1:'A', 2:'NS', 5:'CNAME', 6:'SOA', 12:'PTR', 15:'MX',
                 16:'TXT', 17:'RP', 18:'AFSDB', 24:'SIG', 25:'KEY',
@@ -24,11 +24,12 @@ RCODE =  Bimap({ 0:'None', 1:'Format Error', 2:'Server failure',
                  7:'YXRRSET', 8:'NXRRSET', 9:'NOTAUTH', 10:'NOTZONE'})
 OPCODE = Bimap({ 0:'QUERY', 1:'IQUERY', 2:'STATUS', 5:'UPDATE' })
 
+
 class DNSError(Exception):
     pass
 
-class DNSRecord(object):
 
+class DNSRecord(object):
     """
     dnslib
     ------
@@ -151,6 +152,12 @@ class DNSRecord(object):
     Master Repository/Issues:
 
         *   https://bitbucket.org/paulc/dnslib
+
+    GitHub mirror is at:
+
+        *   https://github.com/paulchakravarti/dnslib
+
+    For any issues please use the Bitbucket repository
 
     """
 
