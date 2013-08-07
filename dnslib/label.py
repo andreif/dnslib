@@ -51,7 +51,10 @@ class DNSLabel(object):
         return hash(self.label)
 
     def __eq__(self, other):
-        return self.label == other.label
+        return str(self) == str(other)
+
+    def __ne__(self, other):
+        return str(self) != str(other)
 
     def __len__(self):
         return len(str(self))
