@@ -8,7 +8,7 @@ from .buffer import DNSBuffer
 from .label import DNSLabel
 from .utils import colonized, base64chunked, ts2str, hexchunked, calc_tag
 
-__all__ = 'QTYPE CLASS QR RCODE OPCODE DNSRecord DNSHeader DNSBuffer'.split()
+#__all__ = 'QTYPE CLASS QR RCODE OPCODE DNSRecord DNSHeader DNSBuffer'.split()
 
 # TODO: redo Bitmap as Enum, move all enums to a separate module
 # TODO: this is probably overkill:
