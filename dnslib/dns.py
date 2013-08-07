@@ -442,7 +442,7 @@ class A(RD):
         return cls(data)
 
     def pack(self, buffer, allow_cache=True):
-        buffer.pack("!BBBB",*map(int,self.data.split(".")))
+        buffer.pack('!BBBB', *map(int, str(self.data).split('.')))
 
     def __str__(self):
         return str(self.data)
