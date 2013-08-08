@@ -4,7 +4,7 @@
 from circuits.net.sockets import UDPServer
 
 from dnslib import A, CNAME, MX, RR
-from dnslib import DNSHeader, DNSRecord, QTYPE
+from dnslib import Header, Message, QTYPE
 
 AF_INET = 2
 SOCK_DGRAM = 2
@@ -18,14 +18,14 @@ class DNSServer(UDPServer):
     channel = "dns"
 
     def read(self, sock, data):
-        request = DNSRecord.parse(data)
+        request = Message.parse(data)
         id = request.header.id
         qname = request.q.qname
         qtype = request.q.qtype
         print "------ Request (%s): %r (%s)" % (str(sock),
                 qname.label, QTYPE[qtype])
 
-        reply = DNSRecord(DNSHeader(id=id, qr=1, aa=1, ra=1), q=request.q)
+        reply = Message(Header(id=id, qr=1, aa=1, ra=1), q=request.q)
 
         if qtype == QTYPE.A:
             reply.add_answer(RR(qname, qtype,      rdata=A(IP)))

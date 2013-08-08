@@ -8,7 +8,7 @@ from gevent import monkey
 monkey.patch_socket()
 
 from dnslib import A, AAAA, CNAME, MX, RR, TXT
-from dnslib import DNSHeader, DNSRecord, QTYPE
+from dnslib import Header, Message, QTYPE
 
 AF_INET = 2
 SOCK_DGRAM = 2
@@ -19,7 +19,7 @@ MSG = "gevent_server.py"
 
 
 def dns_handler(s, peer, data):
-    request = DNSRecord.parse(data)
+    request = Message.parse(data)
     id = request.header.id
     qname = request.q.qname
     qtype = request.q.qtype
@@ -27,7 +27,7 @@ def dns_handler(s, peer, data):
             qname.label, QTYPE[qtype])
     print request
 
-    reply = DNSRecord(DNSHeader(id=id, qr=1, aa=1, ra=1), q=request.q)
+    reply = Message(Header(id=id, qr=1, aa=1, ra=1), q=request.q)
     if qtype == QTYPE.A:
         reply.add_answer(RR(qname, qtype,       rdata=A(IP)))
     if qtype == QTYPE.AAAA:

@@ -25,7 +25,7 @@
 """
 import optparse
 import socket
-from dnslib import DNSRecord, QTYPE
+from dnslib import Message, QTYPE
 
 AF_INET = 2
 SOCK_DGRAM = 2
@@ -39,7 +39,7 @@ def serve_request(proxy, options):
     if options.verbose > 1:
         print data.encode('hex')
     # Parse and print request
-    request = DNSRecord.parse(data)
+    request = Message.parse(data)
     id = request.header.id
     qname = request.q.qname
     qtype = request.q.qtype
@@ -61,7 +61,7 @@ def serve_request(proxy, options):
     if options.verbose > 1:
         print data.encode('hex')
     # Parse and print reply
-    reply = DNSRecord.parse(data)
+    reply = Message.parse(data)
     id = reply.header.id
     qname = reply.q.qname
     qtype = reply.q.qtype
@@ -79,7 +79,7 @@ def serve_request(proxy, options):
     if options.dnslib:
         d = reply.pack()
         try:
-            DNSRecord.parse(d)
+            Message.parse(d)
         except:
             print 'FAILED PACKET'
             print 'orig:'

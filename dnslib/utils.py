@@ -31,8 +31,8 @@ def calc_tag(rdata):
     """
     See: http://tools.ietf.org/html/rfc4034#appendix-B
     """
-    from .dns import RD
-    if isinstance(rdata, RD):
+    from .rdata import RDATA
+    if isinstance(rdata, RDATA):
         rdata = rdata.packed()
     ac = 0
     for i in range(0, len(rdata)):
@@ -42,11 +42,11 @@ def calc_tag(rdata):
 
 
 def rsa_from_rdata(data):
-    from dnslib import DNSBuffer
+    from dnslib import Buffer
     from Crypto.PublicKey import RSA
     from Crypto.Util.number import bytes_to_long
 
-    b = DNSBuffer(data=data)
+    b = Buffer(data=data)
     (e_len,) = b.unpack('!B')
     if not e_len:
         (e_len,) = b.unpack('!H')

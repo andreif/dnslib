@@ -1,17 +1,13 @@
 # coding=utf-8
 
 
-class DNSLabelError(Exception):
-    pass
-
-
 # TODO: check if needs to be renamed to DNSName or something
-class DNSLabel(object):
+class Label(object):
     """
     Container for DNS label supporting arbitary label chars (including '.')
 
-    >>> l1 = DNSLabel("aaa.bbb.ccc")
-    >>> l2 = DNSLabel(["aaa","bbb","ccc"])
+    >>> l1 = Label("aaa.bbb.ccc")
+    >>> l2 = Label(["aaa","bbb","ccc"])
     >>> l1 == l2
     True
     >>> x = { l1 : 1 }
@@ -31,15 +27,15 @@ class DNSLabel(object):
         elif isinstance(label, self.__class__):
             self.label = tuple(label.label)
         else:
-            raise DNSLabelError("Wrong label type: %r" % label)
+            raise Exception("Wrong label type: %r" % label)
 
     def validate(self):
         if len(self) > 253:
-            raise DNSLabelError("Domain label too long: %r" % self)
+            raise Exception("Domain label too long: %r" % self)
 
         for element in self.label:
             if len(element) > 63:
-                raise DNSLabelError("Label component too long: %r" % element)
+                raise Exception("Label component too long: %r" % element)
 
     def __str__(self):
         return ".".join(self.label)
